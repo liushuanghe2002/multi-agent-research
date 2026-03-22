@@ -1,0 +1,941 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Multi-Agent Research Assistant — 代码深度解析</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --bg:#0d1117;--bg2:#161b22;--bg3:#1c2128;--card:#21262d;
+  --border:#30363d;--accent:#58a6ff;--green:#3fb950;--yellow:#d29922;
+  --red:#f85149;--purple:#bc8cff;--orange:#ffa657;--cyan:#79c0ff;
+  --text:#c9d1d9;--muted:#8b949e;--subtle:#6e7681
+}
+body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--text);line-height:1.6}
+
+/* ─── TOP NAV ─── */
+.topnav{background:var(--bg2);border-bottom:1px solid var(--border);padding:0 24px;display:flex;align-items:center;gap:0;position:sticky;top:0;z-index:200}
+.brand{font-weight:700;color:var(--accent);padding:14px 20px 14px 0;border-right:1px solid var(--border);margin-right:8px;font-size:15px;white-space:nowrap}
+.nav-t{padding:16px 14px;cursor:pointer;color:var(--muted);font-size:13px;border-bottom:3px solid transparent;transition:all .2s;white-space:nowrap}
+.nav-t:hover{color:var(--text)}
+.nav-t.on{color:var(--accent);border-bottom-color:var(--accent)}
+
+/* ─── PAGES ─── */
+.page{display:none;max-width:1200px;margin:0 auto;padding:32px 24px}
+.page.on{display:block}
+
+/* ─── SECTION ─── */
+.sec-h{font-size:22px;font-weight:700;margin-bottom:6px}
+.sec-sub{color:var(--muted);font-size:14px;margin-bottom:28px}
+
+/* ─── CARD ─── */
+.card{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:20px;margin-bottom:16px}
+.card-h{font-size:15px;font-weight:600;margin-bottom:12px;color:var(--accent)}
+
+/* ─── CODE BLOCK ─── */
+.code-wrap{background:#0d1117;border:1px solid var(--border);border-radius:8px;overflow:hidden;margin:12px 0}
+.code-bar{background:var(--bg3);padding:8px 16px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--border);font-size:12px;color:var(--muted)}
+.code-bar span{color:var(--green)}
+pre{padding:16px;overflow-x:auto;font-size:13px;line-height:1.7}
+code{font-family:'Cascadia Code','Fira Code','Consolas',monospace}
+/* Syntax highlight helpers */
+.kw{color:#ff7b72}
+.fn{color:#d2a8ff}
+.str{color:#a5d6ff}
+.cm{color:#8b949e;font-style:italic}
+.cls{color:#ffa657}
+.num{color:#79c0ff}
+.op{color:#c9d1d9}
+.bi{color:#ffa657}
+
+/* ─── ANNOTATION BOX ─── */
+.anno{border-left:3px solid;border-radius:0 8px 8px 0;padding:12px 16px;margin:10px 0;font-size:13px;line-height:1.8}
+.anno-blue{border-color:var(--accent);background:#58a6ff11}
+.anno-green{border-color:var(--green);background:#3fb95011}
+.anno-yellow{border-color:var(--yellow);background:#d2992211}
+.anno-purple{border-color:var(--purple);background:#bc8cff11}
+.anno-red{border-color:var(--red);background:#f8514911}
+.anno-orange{border-color:var(--orange);background:#ffa65711}
+
+/* ─── FLOW DIAGRAM (CSS only) ─── */
+.flow{display:flex;align-items:center;gap:0;flex-wrap:wrap;justify-content:center;padding:24px 0}
+.flow-node{background:var(--bg3);border:2px solid var(--border);border-radius:10px;padding:14px 20px;text-align:center;min-width:130px}
+.flow-node.start{border-color:var(--green);background:#3fb95011}
+.flow-node.end{border-color:var(--red);background:#f8514911}
+.flow-node.agent1{border-color:var(--accent);background:#58a6ff11}
+.flow-node.agent2{border-color:var(--yellow);background:#d2992211}
+.flow-node.agent3{border-color:var(--purple);background:#bc8cff11}
+.flow-node .node-icon{font-size:24px;margin-bottom:4px}
+.flow-node .node-name{font-weight:600;font-size:13px}
+.flow-node .node-role{font-size:11px;color:var(--muted);margin-top:2px}
+.flow-arrow{font-size:22px;color:var(--border);padding:0 6px;flex-shrink:0}
+
+/* ─── STATE BOX ─── */
+.state-box{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:20px;font-family:monospace;font-size:13px}
+.state-field{display:flex;align-items:flex-start;gap:12px;padding:8px 0;border-bottom:1px solid var(--border)22}
+.state-field:last-child{border-bottom:none}
+.sf-key{color:var(--cyan);min-width:90px}
+.sf-type{color:var(--yellow);margin-right:8px}
+.sf-desc{color:var(--muted);font-family:sans-serif;font-size:12px}
+.sf-owner{display:inline-block;padding:1px 8px;border-radius:10px;font-size:10px;font-family:sans-serif;font-weight:600;margin-left:auto;white-space:nowrap}
+.own-in{background:#3fb95022;color:#3fb950}
+.own-1{background:#58a6ff22;color:#58a6ff}
+.own-2{background:#d2992222;color:#d29922}
+.own-3{background:#bc8cff22;color:#bc8cff}
+
+/* ─── BADGE ─── */
+.badge{display:inline-block;padding:2px 10px;border-radius:20px;font-size:11px;font-weight:600}
+.b-blue{background:#58a6ff22;color:#58a6ff;border:1px solid #58a6ff44}
+.b-green{background:#3fb95022;color:#3fb950;border:1px solid #3fb95044}
+.b-yellow{background:#d2992222;color:#d29922;border:1px solid #d2992244}
+.b-purple{background:#bc8cff22;color:#bc8cff;border:1px solid #bc8cff44}
+.b-red{background:#f8514922;color:#f85149;border:1px solid #f8514944}
+.b-orange{background:#ffa65722;color:#ffa657;border:1px solid #ffa65744}
+
+/* ─── TAG ─── */
+.tag{display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;margin:2px;background:var(--bg3);color:var(--muted);border:1px solid var(--border)}
+.ic{display:inline-block;padding:1px 7px;border-radius:4px;font-size:12px;font-family:monospace;background:#1f2937;color:#7dd3fc;border:1px solid #374151}
+
+/* ─── COMPARISON TABLE ─── */
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{background:var(--bg3);padding:10px 14px;text-align:left;color:var(--muted);font-weight:600;border-bottom:1px solid var(--border)}
+td{padding:10px 14px;border-bottom:1px solid var(--border)33;vertical-align:top}
+tr:hover td{background:#ffffff04}
+a{color:var(--accent);text-decoration:none}
+a:hover{text-decoration:underline}
+
+/* ─── QUIZ ─── */
+.qz-q{font-weight:600;margin-bottom:12px;font-size:14px;line-height:1.6}
+.qz-opt{padding:10px 14px;border:1px solid var(--border);border-radius:7px;margin-bottom:7px;cursor:pointer;font-size:13px;transition:all .2s}
+.qz-opt:hover{border-color:var(--accent)}
+.qz-opt.correct{border-color:var(--green);background:#3fb95015;color:#3fb950}
+.qz-opt.wrong{border-color:var(--red);background:#f8514915;color:#f85149}
+.qz-opt.selected{border-color:var(--accent)}
+.qz-fb{padding:12px 14px;border-radius:7px;font-size:13px;line-height:1.8;margin-top:8px;display:none}
+.btn{padding:9px 18px;border-radius:7px;border:none;cursor:pointer;font-size:13px;font-weight:500;transition:all .2s}
+.btn-p{background:var(--accent);color:#000}
+.btn-p:hover{filter:brightness(1.1)}
+.btn-s{background:var(--bg3);color:var(--text);border:1px solid var(--border)}
+.btn-s:hover{background:var(--border)}
+
+/* ─── ACCORDION ─── */
+.acc{border:1px solid var(--border);border-radius:8px;margin-bottom:8px;overflow:hidden}
+.acc-h{padding:13px 16px;cursor:pointer;display:flex;justify-content:space-between;align-items:center;background:var(--bg3);font-size:13px;font-weight:500;transition:background .2s}
+.acc-h:hover{background:var(--border)}
+.acc-b{display:none;padding:16px;background:var(--card);font-size:13px;line-height:1.8}
+.acc-b.open{display:block}
+.arr{transition:transform .2s;font-size:11px;color:var(--muted)}
+.arr.open{transform:rotate(180deg)}
+
+/* ─── GRID ─── */
+.g2{display:grid;grid-template-columns:repeat(auto-fill,minmax(440px,1fr));gap:16px}
+.g3{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px}
+
+/* ─── SCROLLBAR ─── */
+::-webkit-scrollbar{width:6px;height:6px}
+::-webkit-scrollbar-track{background:var(--bg)}
+::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
+
+/* ─── STEP INDICATOR ─── */
+.steps{display:flex;gap:0;margin-bottom:24px;flex-wrap:wrap}
+.step{flex:1;min-width:120px;text-align:center;padding:12px 8px;position:relative;cursor:pointer}
+.step::after{content:'';position:absolute;top:20px;right:-1px;width:2px;height:16px;background:var(--border);z-index:1}
+.step:last-child::after{display:none}
+.step-num{width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;margin:0 auto 6px;border:2px solid var(--border);color:var(--muted)}
+.step.on .step-num{border-color:var(--accent);color:var(--accent);background:#58a6ff11}
+.step-label{font-size:11px;color:var(--muted)}
+.step.on .step-label{color:var(--accent)}
+
+/* ─── PROGRESS ─── */
+.prog{background:var(--bg3);border-radius:4px;height:5px;overflow:hidden}
+.prog-fill{height:100%;border-radius:4px;background:linear-gradient(90deg,var(--accent),var(--purple))}
+
+/* ─── CALLOUT ─── */
+.callout{display:flex;gap:12px;background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:14px 16px;margin:12px 0;font-size:13px;line-height:1.8}
+.callout-icon{font-size:18px;flex-shrink:0;margin-top:1px}
+</style>
+</head>
+<body>
+
+<nav class="topnav">
+  <div class="brand">🔬 Research Agent</div>
+  <div class="nav-t on"  onclick="sp('overview')">📐 架构总览</div>
+  <div class="nav-t"     onclick="sp('state')">🗃 共享状态</div>
+  <div class="nav-t"     onclick="sp('agents')">🤖 三个Agent</div>
+  <div class="nav-t"     onclick="sp('graph')">🕸 图编排</div>
+  <div class="nav-t"     onclick="sp('extend')">🚀 扩展实践</div>
+  <div class="nav-t"     onclick="sp('quiz')">✏️ 随堂测验</div>
+</nav>
+
+<!-- ══════════════════════════════════════════════════════ PAGE: OVERVIEW -->
+<div id="page-overview" class="page on">
+  <div class="sec-h">📐 项目架构总览</div>
+  <div class="sec-sub">三个 Agent 组成流水线，通过共享 State 传递数据，LangGraph 负责编排执行顺序</div>
+
+  <!-- 流程图 -->
+  <div class="card">
+    <div class="card-h">🗺 数据流向图</div>
+    <div class="flow">
+      <div class="flow-node start"><div class="node-icon">🚀</div><div class="node-name">START</div><div class="node-role">用户输入 topic</div></div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-node agent1"><div class="node-icon">📚</div><div class="node-name">Researcher</div><div class="node-role">Tavily 搜索 5 篇文章</div></div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-node agent2"><div class="node-icon">📊</div><div class="node-name">Analyst</div><div class="node-role">Groq LLM 提炼见解</div></div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-node agent3"><div class="node-icon">💬</div><div class="node-name">Summariser</div><div class="node-role">Groq LLM 写报告</div></div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-node end"><div class="node-icon">✅</div><div class="node-name">END</div><div class="node-role">返回最终 summary</div></div>
+    </div>
+    <div class="anno anno-blue" style="margin-top:8px">
+      💡 <strong>关键设计</strong>：这是典型的 <strong>Pipeline（流水线）Multi-Agent 模式</strong>。每个 Agent 专职一件事，上游输出成为下游输入。State 字典就是流水线上传递的"托盘"。
+    </div>
+  </div>
+
+  <!-- 文件结构 -->
+  <div class="card">
+    <div class="card-h">📁 项目文件结构</div>
+    <div class="code-wrap">
+      <div class="code-bar"><span>目录树</span></div>
+      <pre><code>multi-agent-research/
+├── <span style="color:#ffa657">research_agent.py</span>   ← <span class="cm">核心文件，全部逻辑在这里</span>
+├── requirements.txt    ← <span class="cm">6 个依赖包</span>
+└── .env.example        ← <span class="cm">API Key 模板</span></code></pre>
+    </div>
+    <div class="anno anno-green">
+      ✅ 整个项目只有 <strong>1 个 Python 文件</strong>，大约 100 行。这是学习 LangGraph 最好的切入点——麻雀虽小，五脏俱全。
+    </div>
+  </div>
+
+  <!-- 技术栈卡片 -->
+  <div class="g3">
+    <div class="card" style="margin-bottom:0;border-color:#58a6ff33">
+      <div style="font-size:28px;margin-bottom:8px">🕸</div>
+      <div style="font-weight:600;color:var(--accent);margin-bottom:6px">LangGraph</div>
+      <div style="font-size:13px;color:var(--muted);line-height:1.8">把 Agent 的执行流程定义为<strong>有向图</strong>。节点=函数，边=执行顺序。比手写 for 循环优雅，且天然支持条件分支、循环和并行。</div>
+      <div style="margin-top:10px"><span class="badge b-blue">DAG 编排</span><span class="badge b-blue">状态机</span></div>
+    </div>
+    <div class="card" style="margin-bottom:0;border-color:#d2992233">
+      <div style="font-size:28px;margin-bottom:8px">⚡</div>
+      <div style="font-weight:600;color:var(--yellow);margin-bottom:6px">Groq</div>
+      <div style="font-size:13px;color:var(--muted);line-height:1.8">极速 LLM 推理服务，Llama-3.1-8b 延迟约 <strong>200ms</strong>，OpenAI 兼容接口，免费额度充足。<br>项目用它替代 OpenAI，降低成本。</div>
+      <div style="margin-top:10px"><span class="badge b-yellow">~200ms 延迟</span><span class="badge b-yellow">免费使用</span></div>
+    </div>
+    <div class="card" style="margin-bottom:0;border-color:#3fb95033">
+      <div style="font-size:28px;margin-bottom:8px">🔍</div>
+      <div style="font-weight:600;color:var(--green);margin-bottom:6px">Tavily</div>
+      <div style="font-size:13px;color:var(--muted);line-height:1.8">专为 AI Agent 设计的搜索 API，返回结构化的 JSON 结果（标题+内容+URL），比爬 Google 更干净。<br>免费 1000 次/月。</div>
+      <div style="margin-top:10px"><span class="badge b-green">结构化结果</span><span class="badge b-green">1000次/月免费</span></div>
+    </div>
+  </div>
+
+  <!-- 和传统实现对比 -->
+  <div class="card" style="margin-top:16px">
+    <div class="card-h">⚖️ LangGraph vs 手写循环：为什么用图编排？</div>
+    <table>
+      <tr><th>维度</th><th>手写 Python 函数调用链</th><th>LangGraph StateGraph</th></tr>
+      <tr><td>执行流程修改</td><td style="color:var(--red)">改代码逻辑，容易出错</td><td style="color:var(--green)">只改 add_edge()，一行搞定</td></tr>
+      <tr><td>条件分支</td><td style="color:var(--yellow)">if/else 嵌套，难维护</td><td style="color:var(--green)">add_conditional_edges() 声明式</td></tr>
+      <tr><td>并行执行</td><td style="color:var(--red)">需要手写 threading/asyncio</td><td style="color:var(--green)">内置支持，自动并发</td></tr>
+      <tr><td>调试可视化</td><td style="color:var(--red)">print 大法</td><td style="color:var(--green)">LangSmith 追踪每一步</td></tr>
+      <tr><td>人工介入点</td><td style="color:var(--red)">需要大量改造</td><td style="color:var(--green)">interrupt_before/after 内置</td></tr>
+      <tr><td>学习曲线</td><td style="color:var(--green)">低</td><td style="color:var(--yellow)">中（需理解图概念）</td></tr>
+    </table>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════ PAGE: STATE -->
+<div id="page-state" class="page">
+  <div class="sec-h">🗃 共享状态：Agent 之间的"黑板"</div>
+  <div class="sec-sub">State 是整个系统最核心的数据结构，理解它就理解了 Agent 间如何通信</div>
+
+  <div class="code-wrap">
+    <div class="code-bar"><span>research_agent.py — State 定义</span></div>
+    <pre><code><span class="kw">from</span> typing <span class="kw">import</span> TypedDict
+
+<span class="kw">class</span> <span class="cls">State</span>(TypedDict):         <span class="cm"># ① 继承 TypedDict，获得类型检查</span>
+    topic:    <span class="bi">str</span>               <span class="cm"># ② 只读字段，由调用者在 invoke() 时传入</span>
+    research: <span class="bi">str</span>               <span class="cm"># ③ Researcher 写入，Analyst 读取</span>
+    analysis: <span class="bi">str</span>               <span class="cm"># ④ Analyst 写入，Summariser 读取</span>
+    summary:  <span class="bi">str</span>               <span class="cm"># ⑤ Summariser 写入，最终结果</span></code></pre>
+  </div>
+
+  <!-- State 字段可视化 -->
+  <div class="card">
+    <div class="card-h">📋 字段所有权矩阵</div>
+    <div class="state-box">
+      <div class="state-field" style="padding-bottom:10px;margin-bottom:4px">
+        <span style="color:var(--muted);font-size:11px;font-family:sans-serif">字段名</span>
+        <span style="color:var(--muted);font-size:11px;font-family:sans-serif;margin-left:30px">类型</span>
+        <span style="color:var(--muted);font-size:11px;font-family:sans-serif;margin-left:auto">写入者</span>
+      </div>
+      <div class="state-field">
+        <span class="sf-key">topic</span>
+        <span class="sf-type">str</span>
+        <span class="sf-desc">用户研究主题，如 "量子计算最新进展"</span>
+        <span class="sf-owner own-in">调用方输入</span>
+      </div>
+      <div class="state-field">
+        <span class="sf-key">research</span>
+        <span class="sf-type">str</span>
+        <span class="sf-desc">Tavily 搜索返回的 5 篇文章标题+正文，原始未处理</span>
+        <span class="sf-owner own-1">📚 Researcher</span>
+      </div>
+      <div class="state-field">
+        <span class="sf-key">analysis</span>
+        <span class="sf-type">str</span>
+        <span class="sf-desc">LLM 对搜索结果的结构化分析：关键事实、冲突信息</span>
+        <span class="sf-owner own-2">📊 Analyst</span>
+      </div>
+      <div class="state-field">
+        <span class="sf-key">summary</span>
+        <span class="sf-type">str</span>
+        <span class="sf-desc">面向非专家的最终报告，含 Key Takeaways</span>
+        <span class="sf-owner own-3">💬 Summariser</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="g2">
+    <div>
+      <div class="anno anno-blue" style="margin-bottom:12px">
+        💡 <strong>为什么用 TypedDict？</strong><br>
+        TypedDict 让 Python 知道字典里有哪些 key，IDE 可以自动补全，mypy 可以做类型检查。LangGraph 也依赖这个结构来验证 Agent 的返回值格式是否正确。
+      </div>
+      <div class="anno anno-yellow">
+        ⚠️ <strong>单向写入原则</strong>：每个 Agent 只写自己负责的字段，绝不覆盖其他 Agent 的输出。这避免了并发写入冲突，也让数据流向清晰可追溯。
+      </div>
+    </div>
+    <div>
+      <div class="card" style="margin-bottom:0">
+        <div class="card-h">🔄 State 在执行中的变化</div>
+        <div style="font-size:13px;line-height:2">
+          <div style="padding:8px;background:var(--bg3);border-radius:6px;margin-bottom:6px">
+            <span style="color:var(--muted)">invoke 前：</span><br>
+            <span class="ic">{"topic": "量子计算"}</span>
+          </div>
+          <div style="text-align:center;color:var(--muted);font-size:11px">↓ Researcher 执行后</div>
+          <div style="padding:8px;background:var(--bg3);border-radius:6px;margin:6px 0">
+            <span class="ic">{"topic": "量子计算", "research": "IBM宣布...Google实现..."}</span>
+          </div>
+          <div style="text-align:center;color:var(--muted);font-size:11px">↓ Analyst 执行后</div>
+          <div style="padding:8px;background:var(--bg3);border-radius:6px;margin:6px 0">
+            <span class="ic">{"topic":..., "research":..., "analysis": "关键发现：1...."}</span>
+          </div>
+          <div style="text-align:center;color:var(--muted);font-size:11px">↓ Summariser 执行后</div>
+          <div style="padding:8px;background:var(--bg3);border-radius:6px;margin-top:6px">
+            <span class="ic">{"topic":..., "research":..., "analysis":..., "summary": "..."}</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-h">🧠 延伸：LangGraph 的 Annotated State（进阶用法）</div>
+    <div class="code-wrap">
+      <div class="code-bar"><span>进阶示例 — 带累积器的 State</span></div>
+      <pre><code><span class="kw">from</span> typing <span class="kw">import</span> Annotated
+<span class="kw">import</span> operator
+
+<span class="kw">class</span> <span class="cls">AdvancedState</span>(TypedDict):
+    topic:    <span class="bi">str</span>
+    <span class="cm"># 用 Annotated + operator.add 让 messages 字段自动累积（而不是覆盖）</span>
+    messages: Annotated[<span class="bi">list</span>, operator.add]   <span class="cm"># ← 这是 LangGraph 的"消息累积器"</span>
+    research: <span class="bi">str</span>
+    analysis: <span class="bi">str</span></code></pre>
+    </div>
+    <div class="anno anno-purple">
+      🔬 当多个 Agent <strong>并行写入同一字段</strong>时，用 <span class="ic">Annotated[list, operator.add]</span> 可以把结果追加而不是覆盖。这是 LangGraph 处理并行 Reduce 的核心机制。
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════ PAGE: AGENTS -->
+<div id="page-agents" class="page">
+  <div class="sec-h">🤖 三个 Agent 逐行解析</div>
+  <div class="sec-sub">每个 Agent 是一个普通 Python 函数，输入 State，返回部分 State 更新</div>
+
+  <!-- Agent 1 -->
+  <div class="card" style="border-color:#58a6ff55">
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px">
+      <span style="font-size:28px">📚</span>
+      <div>
+        <div style="font-size:16px;font-weight:700;color:var(--accent)">Agent 1：Researcher</div>
+        <div style="font-size:13px;color:var(--muted)">职责：调用 Tavily 搜索 API，返回原始文章</div>
+      </div>
+      <div style="margin-left:auto"><span class="badge b-blue">工具调用型 Agent</span></div>
+    </div>
+    <div class="code-wrap">
+      <div class="code-bar"><span>research_node()</span><span>行 31–45</span></div>
+      <pre><code><span class="kw">def</span> <span class="fn">research_node</span>(state: <span class="cls">State</span>) -> <span class="bi">dict</span>:
+    <span class="cm">"""
+    注意返回类型是 dict，而不是完整 State。
+    LangGraph 会把返回的 dict 浅合并（merge）进全局 State。
+    """</span>
+    tavily = <span class="cls">TavilyClient</span>(api_key=TAVILY_API_KEY)  <span class="cm"># ①</span>
+    results = tavily.search(                              <span class="cm"># ②</span>
+        state[<span class="str">"topic"</span>],                               <span class="cm"># 读取用户输入</span>
+        max_results=<span class="num">5</span>                                  <span class="cm"># 搜索 5 篇文章</span>
+    )
+
+    combined_results = <span class="str">""</span>
+    <span class="kw">for</span> r <span class="kw">in</span> results[<span class="str">"results"</span>]:                       <span class="cm"># ③</span>
+        combined_results += r[<span class="str">"title"</span>] + <span class="str">"\n"</span> + r[<span class="str">"content"</span>] + <span class="str">"\n\n"</span>
+
+    <span class="kw">return</span> {<span class="str">"research"</span>: combined_results}                 <span class="cm"># ④ 只写自己负责的字段</span></code></pre>
+    </div>
+    <div class="g2" style="margin-top:12px">
+      <div>
+        <div class="anno anno-blue">① TavilyClient 每次调用都新建实例。生产中应该复用（全局变量或依赖注入），避免反复初始化的开销。</div>
+        <div class="anno anno-green">② tavily.search() 返回的 JSON 结构：<br><span class="ic">{"results": [{"title":..., "url":..., "content":...}, ...]}</span></div>
+      </div>
+      <div>
+        <div class="anno anno-yellow">③ 简单拼接所有文章。注意：这里没有做去重、质量过滤。生产中应加来源可信度评分。</div>
+        <div class="anno anno-purple">④ 关键：<strong>只返回 {"research": ...}</strong>，LangGraph 自动 merge 进全局 State，topic/analysis/summary 字段不受影响。</div>
+      </div>
+    </div>
+    <div class="callout">
+      <span class="callout-icon">🔧</span>
+      <div><strong>动手改造：</strong>把 <span class="ic">max_results=5</span> 改成从 State 读取：<span class="ic">state.get("max_results", 5)</span>，然后在 State 类里加 <span class="ic">max_results: int</span> 字段，用户就可以控制搜索深度了。</div>
+    </div>
+  </div>
+
+  <!-- Agent 2 -->
+  <div class="card" style="border-color:#d2992255">
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px">
+      <span style="font-size:28px">📊</span>
+      <div>
+        <div style="font-size:16px;font-weight:700;color:var(--yellow)">Agent 2：Analyst</div>
+        <div style="font-size:13px;color:var(--muted)">职责：用 LLM 分析原始搜索结果，提炼关键见解</div>
+      </div>
+      <div style="margin-left:auto"><span class="badge b-yellow">LLM 推理型 Agent</span></div>
+    </div>
+    <div class="code-wrap">
+      <div class="code-bar"><span>analyst_node()</span><span>行 48–78</span></div>
+      <pre><code><span class="kw">def</span> <span class="fn">analyst_node</span>(state: <span class="cls">State</span>) -> <span class="bi">dict</span>:
+    groq_client = <span class="cls">Groq</span>(api_key=GROQ_API_KEY)
+
+    response = groq_client.chat.completions.create(
+        model=MODEL,                                         <span class="cm"># ① llama-3.1-8b-instant</span>
+        messages=[
+            {
+                <span class="str">"role"</span>: <span class="str">"system"</span>,                            <span class="cm"># ② 角色提示</span>
+                <span class="str">"content"</span>: (
+                    <span class="str">"You are a research analyst. "</span>
+                    <span class="str">"Extract key insights, identify important facts, "</span>
+                    <span class="str">"and note any conflicting information."</span>
+                ),
+            },
+            {
+                <span class="str">"role"</span>: <span class="str">"user"</span>,
+                <span class="str">"content"</span>: (                                    <span class="cm"># ③ 把 topic + research 一起传入</span>
+                    <span class="str">f"Topic: {state['topic']}\n\n"</span>
+                    <span class="str">f"Research:\n{state['research']}"</span>
+                ),
+            },
+        ],
+    )
+
+    answer = response.choices[<span class="num">0</span>].message.content         <span class="cm"># ④ 取第一个候选输出</span>
+    <span class="kw">return</span> {<span class="str">"analysis"</span>: answer}</code></pre>
+    </div>
+    <div class="g2" style="margin-top:12px">
+      <div>
+        <div class="anno anno-yellow">① Groq API 接口与 OpenAI 100% 兼容，只需换 base_url 和 api_key，代码无需其他修改即可切换到 GPT-4。</div>
+        <div class="anno anno-blue">② System Prompt 定义了 Agent 的<strong>角色和能力边界</strong>。这里要求"客观、找冲突信息"，是高质量 Analyst 的关键。</div>
+      </div>
+      <div>
+        <div class="anno anno-green">③ 把前一个 Agent 的输出（research）和原始 topic 一起打包给 LLM。这就是 Agent 间"通过 State 通信"的具体体现。</div>
+        <div class="anno anno-orange">④ <span class="ic">response.choices[0].message.content</span> 是 OpenAI 风格 API 的标准取值方式。如果开启了 n>1，choices 里会有多个候选。</div>
+      </div>
+    </div>
+    <div class="callout">
+      <span class="callout-icon">💡</span>
+      <div><strong>Prompt 工程要点：</strong>Analyst 的 System Prompt 要求 <em>"note any conflicting information between sources"</em>（标记来源冲突）。这非常重要——搜索结果可能相互矛盾，让 LLM 显式标记冲突，Summariser 才能给出平衡的报告，而不是只取一家之言。</div>
+    </div>
+  </div>
+
+  <!-- Agent 3 -->
+  <div class="card" style="border-color:#bc8cff55">
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px">
+      <span style="font-size:28px">💬</span>
+      <div>
+        <div style="font-size:16px;font-weight:700;color:var(--purple)">Agent 3：Summariser</div>
+        <div style="font-size:13px;color:var(--muted)">职责：把分析结果转化为非专家可读的结构化报告</div>
+      </div>
+      <div style="margin-left:auto"><span class="badge b-purple">输出生成型 Agent</span></div>
+    </div>
+    <div class="code-wrap">
+      <div class="code-bar"><span>summariser_node()</span><span>行 81–109</span></div>
+      <pre><code><span class="kw">def</span> <span class="fn">summariser_node</span>(state: <span class="cls">State</span>) -> <span class="bi">dict</span>:
+    groq_client = <span class="cls">Groq</span>(api_key=GROQ_API_KEY)
+
+    response = groq_client.chat.completions.create(
+        model=MODEL,
+        messages=[
+            {
+                <span class="str">"role"</span>: <span class="str">"system"</span>,
+                <span class="str">"content"</span>: (
+                    <span class="str">"You are a technical writer. "</span>             <span class="cm"># ① 角色切换！</span>
+                    <span class="str">"Write a clear summary a non-expert could understand. "</span>
+                    <span class="str">"Include key takeaways at the end."</span>           <span class="cm"># ② 要求结构化输出</span>
+                ),
+            },
+            {
+                <span class="str">"role"</span>: <span class="str">"user"</span>,
+                <span class="str">"content"</span>: (                                    <span class="cm"># ③ 只读 analysis，不读原始 research</span>
+                    <span class="str">f"Topic: {state['topic']}\n\n"</span>
+                    <span class="str">f"Analysis:\n{state['analysis']}"</span>
+                ),
+            },
+        ],
+    )
+
+    answer = response.choices[<span class="num">0</span>].message.content
+    <span class="kw">return</span> {<span class="str">"summary"</span>: answer}</code></pre>
+    </div>
+    <div class="g2" style="margin-top:12px">
+      <div>
+        <div class="anno anno-purple">① System Prompt 换成了 "technical writer"（技术写作者），而不是 "research analyst"。<strong>同一个 LLM，不同的角色，行为完全不同</strong>——这正是 Multi-Agent 分工的精髓。</div>
+      </div>
+      <div>
+        <div class="anno anno-green">③ 注意 Summariser <strong>没有读取 state["research"]</strong>——它只处理 Analyst 精炼后的分析，避免被原始噪音干扰。这是信息分层处理的体现。</div>
+      </div>
+    </div>
+    <div class="callout">
+      <span class="callout-icon">🎯</span>
+      <div>
+        <strong>三个 Agent 的 System Prompt 对比：</strong><br>
+        • Researcher：<em>没有 LLM，只有工具调用</em><br>
+        • Analyst：<em>"research analyst — objective, find conflicts"</em>（客观分析师）<br>
+        • Summariser：<em>"technical writer — clear, non-expert friendly, key takeaways"</em>（技术写作者）<br>
+        → <strong>角色定义 = Agent 能力边界</strong>，这是 Prompt 设计最核心的部分。
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════ PAGE: GRAPH -->
+<div id="page-graph" class="page">
+  <div class="sec-h">🕸 LangGraph 图编排：把 Agent 连起来</div>
+  <div class="sec-sub">build_graph() 是整个项目的"指挥中心"，理解它就掌握了 LangGraph 的核心 API</div>
+
+  <div class="code-wrap">
+    <div class="code-bar"><span>build_graph()</span><span>行 112–128</span></div>
+    <pre><code><span class="kw">def</span> <span class="fn">build_graph</span>():
+    graph = <span class="cls">StateGraph</span>(<span class="cls">State</span>)         <span class="cm"># ① 创建图，绑定 State 类型</span>
+
+    <span class="cm"># ② 注册节点：字符串名称 → Python 函数</span>
+    graph.add_node(<span class="str">"research"</span>,   research_node)
+    graph.add_node(<span class="str">"analyst"</span>,    analyst_node)
+    graph.add_node(<span class="str">"summariser"</span>, summariser_node)
+
+    <span class="cm"># ③ 添加有向边：定义执行顺序</span>
+    graph.add_edge(START,          <span class="str">"research"</span>)   <span class="cm"># 从起点进入 Researcher</span>
+    graph.add_edge(<span class="str">"research"</span>,    <span class="str">"analyst"</span>)    <span class="cm"># Researcher → Analyst</span>
+    graph.add_edge(<span class="str">"analyst"</span>,     <span class="str">"summariser"</span>) <span class="cm"># Analyst → Summariser</span>
+    graph.add_edge(<span class="str">"summariser"</span>,  END)           <span class="cm"># Summariser → 终点</span>
+
+    <span class="kw">return</span> graph.compile()              <span class="cm"># ④ 编译为可执行的 Runnable</span></code></pre>
+  </div>
+
+  <div class="g2">
+    <div>
+      <div class="anno anno-blue">① <span class="ic">StateGraph(State)</span>：把 State 类型"绑定"到图上，LangGraph 会用这个类型来验证每个节点的输入输出，防止传错字段。</div>
+      <div class="anno anno-green" style="margin-top:8px">② <span class="ic">add_node("name", fn)</span>：节点名称是字符串，函数是节点逻辑。名称在 add_edge() 里引用，函数可以是任何 callable（lambda、类方法、闭包）。</div>
+      <div class="anno anno-yellow" style="margin-top:8px">③ <span class="ic">add_edge(A, B)</span>：声明执行顺序，"A 完成后执行 B"。顺序与代码里 add_edge 的先后无关，只和边的定义有关。</div>
+      <div class="anno anno-purple" style="margin-top:8px">④ <span class="ic">compile()</span>：把图"冻结"成 Runnable 对象，支持 .invoke()/.stream()/.astream() 等接口，也可以加 checkpointer 实现断点续跑。</div>
+    </div>
+    <div>
+      <div class="card" style="margin-bottom:0">
+        <div class="card-h">🔀 进阶：条件边（Conditional Edges）</div>
+        <div style="font-size:13px;color:var(--muted);margin-bottom:10px">如果 Analyst 认为搜索结果质量太差，想让 Researcher 重新搜索怎么办？</div>
+        <div class="code-wrap" style="margin-top:0">
+          <div class="code-bar"><span>条件路由示例</span></div>
+          <pre><code><span class="kw">def</span> <span class="fn">route_after_analyst</span>(state: <span class="cls">State</span>) -> <span class="bi">str</span>:
+    <span class="cm"># 如果分析结果太短，质量不够</span>
+    <span class="kw">if</span> <span class="bi">len</span>(state[<span class="str">"analysis"</span>]) < <span class="num">200</span>:
+        <span class="kw">return</span> <span class="str">"research"</span>   <span class="cm"># ← 回到 Researcher 重搜</span>
+    <span class="kw">return</span> <span class="str">"summariser"</span>      <span class="cm"># ← 正常继续</span>
+
+<span class="cm"># 替换原来的 add_edge:</span>
+graph.add_conditional_edges(
+    <span class="str">"analyst"</span>,
+    route_after_analyst,
+    {<span class="str">"research"</span>: <span class="str">"research"</span>, <span class="str">"summariser"</span>: <span class="str">"summariser"</span>}
+)</code></pre>
+        </div>
+        <div class="anno anno-orange" style="margin-top:8px">这就实现了<strong>自动重试循环</strong>，是 Reflexion / Self-Correction Agent 的基础模式。</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- invoke / stream 对比 -->
+  <div class="card" style="margin-top:0">
+    <div class="card-h">▶️ 三种调用方式对比</div>
+    <div class="code-wrap">
+      <div class="code-bar"><span>invoke / stream / astream 用法</span></div>
+      <pre><code>app = build_graph()
+
+<span class="cm"># ① invoke — 同步等待全部完成，返回最终 State</span>
+result = app.invoke({<span class="str">"topic"</span>: <span class="str">"量子计算"</span>})
+<span class="bi">print</span>(result[<span class="str">"summary"</span>])
+
+<span class="cm"># ② stream — 每个节点完成时立即返回该节点的输出（适合进度显示）</span>
+<span class="kw">for</span> chunk <span class="kw">in</span> app.stream({<span class="str">"topic"</span>: <span class="str">"量子计算"</span>}):
+    <span class="bi">print</span>(chunk)      <span class="cm"># 输出类似: {"research": {...}}, {"analysis": {...}}, ...</span>
+
+<span class="cm"># ③ astream — 异步流式，用于 FastAPI / async 环境</span>
+<span class="kw">async for</span> chunk <span class="kw">in</span> app.astream({<span class="str">"topic"</span>: <span class="str">"量子计算"</span>}):
+    <span class="kw">await</span> websocket.send(chunk)</code></pre>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════ PAGE: EXTEND -->
+<div id="page-extend" class="page">
+  <div class="sec-h">🚀 扩展实践：从入门到生产级</div>
+  <div class="sec-sub">在原项目基础上逐步增加功能，每一步都可独立运行</div>
+
+  <div class="steps">
+    <div class="step on" onclick="showExt(1,this)"><div class="step-num">1</div><div class="step-label">加 Fact-Checker</div></div>
+    <div class="step" onclick="showExt(2,this)"><div class="step-num">2</div><div class="step-label">流式输出</div></div>
+    <div class="step" onclick="showExt(3,this)"><div class="step-num">3</div><div class="step-label">记忆持久化</div></div>
+    <div class="step" onclick="showExt(4,this)"><div class="step-num">4</div><div class="step-label">人工介入</div></div>
+    <div class="step" onclick="showExt(5,this)"><div class="step-num">5</div><div class="step-label">并行搜索</div></div>
+  </div>
+
+  <!-- EXT 1 -->
+  <div id="ext-1" class="ext-panel">
+    <div class="card">
+      <div class="card-h">📌 扩展 1：添加 Fact-Checker Agent（核实环节）</div>
+      <div style="font-size:13px;color:var(--muted);margin-bottom:16px">在 Analyst 和 Summariser 之间插入一个 Fact-Checker，让它对 Analyst 的结论进行可信度评分。</div>
+      <div class="code-wrap">
+        <div class="code-bar"><span>新增 fact_checker_node</span></div>
+        <pre><code><span class="cm"># 1. 扩展 State 添加新字段</span>
+<span class="kw">class</span> <span class="cls">State</span>(TypedDict):
+    topic:       <span class="bi">str</span>
+    research:    <span class="bi">str</span>
+    analysis:    <span class="bi">str</span>
+    fact_check:  <span class="bi">str</span>   <span class="cm"># ← 新增</span>
+    summary:     <span class="bi">str</span>
+
+<span class="cm"># 2. 新 Agent 函数</span>
+<span class="kw">def</span> <span class="fn">fact_checker_node</span>(state: <span class="cls">State</span>) -> <span class="bi">dict</span>:
+    groq_client = <span class="cls">Groq</span>(api_key=GROQ_API_KEY)
+    response = groq_client.chat.completions.create(
+        model=MODEL,
+        messages=[{
+            <span class="str">"role"</span>: <span class="str">"system"</span>,
+            <span class="str">"content"</span>: <span class="str">"You are a fact checker. Review the analysis and rate each claim (HIGH/MEDIUM/LOW confidence). Flag unsupported claims."</span>
+        },{
+            <span class="str">"role"</span>: <span class="str">"user"</span>,
+            <span class="str">"content"</span>: <span class="str">f"Analysis:\n{state['analysis']}\n\nOriginal Research:\n{state['research']}"</span>
+        }]
+    )
+    <span class="kw">return</span> {<span class="str">"fact_check"</span>: response.choices[<span class="num">0</span>].message.content}
+
+<span class="cm"># 3. 更新图（插入新节点）</span>
+graph.add_node(<span class="str">"fact_checker"</span>, fact_checker_node)
+graph.add_edge(<span class="str">"analyst"</span>,      <span class="str">"fact_checker"</span>)   <span class="cm"># ← 原来: analyst → summariser</span>
+graph.add_edge(<span class="str">"fact_checker"</span>,  <span class="str">"summariser"</span>)</code></pre>
+      </div>
+      <div class="anno anno-green">✅ 插入新节点只需：①加 State 字段 ②写函数 ③改两行 add_edge。这就是图编排的灵活性——流程修改不影响已有 Agent 的代码。</div>
+    </div>
+  </div>
+
+  <!-- EXT 2 -->
+  <div id="ext-2" class="ext-panel" style="display:none">
+    <div class="card">
+      <div class="card-h">⚡ 扩展 2：流式输出（Streaming）</div>
+      <div style="font-size:13px;color:var(--muted);margin-bottom:16px">让用户看到每个 Agent 完成时的实时进度，而不是等到全部结束。</div>
+      <div class="code-wrap">
+        <div class="code-bar"><span>stream() 用法</span></div>
+        <pre><code><span class="kw">def</span> <span class="fn">research_streaming</span>(topic: <span class="bi">str</span>):
+    app = build_graph()
+
+    <span class="cm"># stream() 在每个节点完成时 yield 该节点的输出</span>
+    <span class="kw">for</span> event <span class="kw">in</span> app.stream({<span class="str">"topic"</span>: topic}):
+        <span class="cm"># event 格式: {"node_name": {部分 State 更新}}</span>
+        <span class="kw">for</span> node_name, node_output <span class="kw">in</span> event.items():
+            <span class="kw">if</span> node_name == <span class="str">"research"</span>:
+                <span class="bi">print</span>(<span class="str">"📚 搜索完成，找到文章..."</span>)
+            <span class="kw">elif</span> node_name == <span class="str">"analyst"</span>:
+                <span class="bi">print</span>(<span class="str">"📊 分析完成，提炼见解..."</span>)
+            <span class="kw">elif</span> node_name == <span class="str">"summariser"</span>:
+                <span class="bi">print</span>(<span class="str">"✅ 总结完成！\n"</span>)
+                <span class="bi">print</span>(node_output[<span class="str">"summary"</span>])
+
+<span class="cm"># 如果要把 LLM token 级别的流式也透出来，
+# 在 Groq 调用里加 stream=True：</span>
+response = groq_client.chat.completions.create(
+    model=MODEL, messages=[...],
+    stream=<span class="kw">True</span>            <span class="cm"># ← 加这一行</span>
+)
+<span class="kw">for</span> chunk <span class="kw">in</span> response:
+    <span class="bi">print</span>(chunk.choices[<span class="num">0</span>].delta.content <span class="kw">or</span> <span class="str">""</span>, end=<span class="str">""</span>, flush=<span class="kw">True</span>)</code></pre>
+      </div>
+      <div class="anno anno-blue">💡 两种流式粒度：LangGraph 的 stream() 是<strong>节点级</strong>（每个 Agent 完成就推一次）；Groq 的 stream=True 是<strong>token 级</strong>（逐字推出）。根据 UX 需求选择。</div>
+    </div>
+  </div>
+
+  <!-- EXT 3 -->
+  <div id="ext-3" class="ext-panel" style="display:none">
+    <div class="card">
+      <div class="card-h">🧠 扩展 3：记忆持久化（Checkpointer）</div>
+      <div style="font-size:13px;color:var(--muted);margin-bottom:16px">让研究助手"记住"之前的研究，支持断点续跑和多轮对话。</div>
+      <div class="code-wrap">
+        <div class="code-bar"><span>SQLite Checkpointer 示例</span></div>
+        <pre><code><span class="kw">from</span> langgraph.checkpoint.sqlite <span class="kw">import</span> SqliteSaver
+
+<span class="cm"># 创建持久化存储（SQLite 文件）</span>
+checkpointer = <span class="cls">SqliteSaver</span>.from_conn_string(<span class="str">"research_memory.db"</span>)
+
+<span class="cm"># 编译时传入 checkpointer</span>
+app = graph.compile(checkpointer=checkpointer)
+
+<span class="cm"># 运行时传入 thread_id（对话 ID）</span>
+config = {<span class="str">"configurable"</span>: {<span class="str">"thread_id"</span>: <span class="str">"user_001_session_1"</span>}}
+
+result = app.invoke({<span class="str">"topic"</span>: <span class="str">"量子计算"</span>}, config=config)
+
+<span class="cm"># 下次同一 thread_id 调用，LangGraph 会自动加载历史状态
+# 可以从中断点继续，也可以查看历史</span>
+history = app.get_state_history(config)
+<span class="kw">for</span> state <span class="kw">in</span> history:
+    <span class="bi">print</span>(state.created_at, state.values.keys())</code></pre>
+      </div>
+      <div class="anno anno-purple">🔬 <span class="ic">thread_id</span> 就是"会话 ID"，同一用户的多次对话用同一 thread_id，就能实现连续记忆。这是 MemGPT 思想的 LangGraph 实现。</div>
+    </div>
+  </div>
+
+  <!-- EXT 4 -->
+  <div id="ext-4" class="ext-panel" style="display:none">
+    <div class="card">
+      <div class="card-h">🧑‍💻 扩展 4：人工介入点（Human-in-the-Loop）</div>
+      <div style="font-size:13px;color:var(--muted);margin-bottom:16px">在 Analyst 完成后暂停，让人类确认分析质量，再决定是否继续生成报告。</div>
+      <div class="code-wrap">
+        <div class="code-bar"><span>interrupt_before 示例</span></div>
+        <pre><code><span class="cm"># 编译时声明"在 summariser 节点前暂停"</span>
+app = graph.compile(
+    checkpointer=checkpointer,
+    interrupt_before=[<span class="str">"summariser"</span>]          <span class="cm"># ← 关键</span>
+)
+
+config = {<span class="str">"configurable"</span>: {<span class="str">"thread_id"</span>: <span class="str">"review_001"</span>}}
+
+<span class="cm"># 第一次调用：执行到 Analyst 后暂停</span>
+result = app.invoke({<span class="str">"topic"</span>: <span class="str">"AI安全"</span>}, config=config)
+<span class="cm"># result 此时包含 research 和 analysis，但没有 summary</span>
+
+<span class="cm"># 人类查看分析结果</span>
+current = app.get_state(config)
+<span class="bi">print</span>(<span class="str">"Analyst 结果：\n"</span>, current.values[<span class="str">"analysis"</span>])
+approved = <span class="bi">input</span>(<span class="str">"是否继续生成报告？(y/n): "</span>)
+
+<span class="kw">if</span> approved == <span class="str">"y"</span>:
+    <span class="cm"># 传 None 继续执行（从暂停点恢复）</span>
+    final = app.invoke(<span class="kw">None</span>, config=config)
+    <span class="bi">print</span>(final[<span class="str">"summary"</span>])</code></pre>
+      </div>
+      <div class="anno anno-red">⚡ 这就是生产 Agent 的"关键节点人工介入"模式。对高风险操作（发邮件、写数据库）前加 interrupt_before，让人类确认，大幅降低误操作风险。</div>
+    </div>
+  </div>
+
+  <!-- EXT 5 -->
+  <div id="ext-5" class="ext-panel" style="display:none">
+    <div class="card">
+      <div class="card-h">⚡ 扩展 5：并行搜索（Map-Reduce 模式）</div>
+      <div style="font-size:13px;color:var(--muted);margin-bottom:16px">同时从多个数据源搜索，然后汇总结果，速度提升 N 倍。</div>
+      <div class="code-wrap">
+        <div class="code-bar"><span>并行节点示例</span></div>
+        <pre><code><span class="kw">from</span> typing <span class="kw">import</span> Annotated
+<span class="kw">import</span> operator
+
+<span class="kw">class</span> <span class="cls">ParallelState</span>(TypedDict):
+    topic:      <span class="bi">str</span>
+    <span class="cm"># Annotated + operator.add 让多个并行节点的输出自动合并</span>
+    searches:   Annotated[<span class="bi">list</span>[<span class="bi">str</span>], operator.add]
+    analysis:   <span class="bi">str</span>
+    summary:    <span class="bi">str</span>
+
+<span class="kw">def</span> <span class="fn">search_web</span>(state): ...      <span class="cm"># 搜 Tavily</span>
+<span class="kw">def</span> <span class="fn">search_arxiv</span>(state): ...    <span class="cm"># 搜 arXiv 论文</span>
+<span class="kw">def</span> <span class="fn">search_wiki</span>(state): ...     <span class="cm"># 搜 Wikipedia</span>
+
+graph = <span class="cls">StateGraph</span>(<span class="cls">ParallelState</span>)
+graph.add_node(<span class="str">"search_web"</span>,   search_web)
+graph.add_node(<span class="str">"search_arxiv"</span>, search_arxiv)
+graph.add_node(<span class="str">"search_wiki"</span>,  search_wiki)
+graph.add_node(<span class="str">"analyst"</span>,      analyst_node)
+
+<span class="cm"># START → 三路并行</span>
+graph.add_edge(START,          <span class="str">"search_web"</span>)
+graph.add_edge(START,          <span class="str">"search_arxiv"</span>)
+graph.add_edge(START,          <span class="str">"search_wiki"</span>)
+
+<span class="cm"># 三路汇聚 → analyst（LangGraph 自动等待三路都完成）</span>
+graph.add_edge(<span class="str">"search_web"</span>,   <span class="str">"analyst"</span>)
+graph.add_edge(<span class="str">"search_arxiv"</span>, <span class="str">"analyst"</span>)
+graph.add_edge(<span class="str">"search_wiki"</span>,  <span class="str">"analyst"</span>)</code></pre>
+      </div>
+      <div class="anno anno-orange">🔀 LangGraph 发现多条边同时指向 START 时，自动并行执行；发现多条边同时指向 analyst 时，自动等待所有上游完成（Join）。这是 <strong>Map-Reduce 模式</strong>，无需手写 asyncio.gather。</div>
+    </div>
+  </div>
+
+  <!-- 学习路径 -->
+  <div class="card" style="margin-top:16px">
+    <div class="card-h">🗺 完整学习路径</div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px">
+      <div style="background:var(--bg3);border-radius:8px;padding:14px;text-align:center">
+        <div style="font-size:24px;margin-bottom:6px">①</div>
+        <div style="font-weight:600;font-size:13px;margin-bottom:4px">读懂原项目</div>
+        <div style="font-size:11px;color:var(--muted)">理解 State / 3节点 / build_graph 的关系</div>
+      </div>
+      <div style="background:var(--bg3);border-radius:8px;padding:14px;text-align:center">
+        <div style="font-size:24px;margin-bottom:6px">②</div>
+        <div style="font-weight:600;font-size:13px;margin-bottom:4px">加 Fact-Checker</div>
+        <div style="font-size:11px;color:var(--muted)">练习插入新节点，理解边的修改方式</div>
+      </div>
+      <div style="background:var(--bg3);border-radius:8px;padding:14px;text-align:center">
+        <div style="font-size:24px;margin-bottom:6px">③</div>
+        <div style="font-weight:600;font-size:13px;margin-bottom:4px">改为条件路由</div>
+        <div style="font-size:11px;color:var(--muted)">质量不够就重搜，理解 conditional_edges</div>
+      </div>
+      <div style="background:var(--bg3);border-radius:8px;padding:14px;text-align:center">
+        <div style="font-size:24px;margin-bottom:6px">④</div>
+        <div style="font-weight:600;font-size:13px;margin-bottom:4px">加 Checkpointer</div>
+        <div style="font-size:11px;color:var(--muted)">持久化状态，理解 thread_id 记忆机制</div>
+      </div>
+      <div style="background:var(--bg3);border-radius:8px;padding:14px;text-align:center">
+        <div style="font-size:24px;margin-bottom:6px">⑤</div>
+        <div style="font-weight:600;font-size:13px;margin-bottom:4px">并行 Map-Reduce</div>
+        <div style="font-size:11px;color:var(--muted)">多源搜索汇聚，掌握 Annotated State</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════ PAGE: QUIZ -->
+<div id="page-quiz" class="page">
+  <div class="sec-h">✏️ 随堂测验</div>
+  <div class="sec-sub">检验对这个项目代码的理解程度</div>
+  <div class="card">
+    <div style="display:flex;justify-content:space-between;margin-bottom:12px">
+      <span style="color:var(--muted);font-size:13px">题目 <span id="qn">1</span> / 10</span>
+      <span style="color:var(--green);font-size:13px">✓ <span id="qc">0</span> &nbsp; <span style="color:var(--red)">✗ <span id="qw">0</span></span></span>
+    </div>
+    <div class="prog"><div class="prog-fill" id="qprog" style="width:0%"></div></div>
+  </div>
+  <div class="card" id="quiz-q-card">
+    <div class="qz-q" id="qq"></div>
+    <div id="qopts"></div>
+    <div class="qz-fb" id="qfb"></div>
+    <div style="margin-top:14px">
+      <button class="btn btn-p" id="qnext" onclick="nextQ()" style="display:none">下一题 →</button>
+    </div>
+  </div>
+  <div id="quiz-end" style="display:none;text-align:center;padding:32px">
+    <div style="font-size:48px;margin-bottom:16px" id="qend-emoji"></div>
+    <div style="font-size:22px;font-weight:700;margin-bottom:8px" id="qend-title"></div>
+    <div style="color:var(--muted);margin-bottom:24px" id="qend-msg"></div>
+    <button class="btn btn-p" onclick="restartQ()">再来一次</button>
+  </div>
+  <script>
+  const QS=[
+    {q:"research_node() 返回的 dict 里包含哪些字段？",o:["topic 和 research","只有 research","research 和 analysis","全部 4 个字段"],a:1,e:"Agent 函数只返回自己负责写入的字段——research_node 只写 research，LangGraph 会把这个 dict merge 进全局 State，其他字段保持不变。"},
+    {q:"为什么要用 TypedDict 定义 State，而不是普通 dict？",o:["TypedDict 更快","获得类型检查和 IDE 自动补全，LangGraph 也用它验证节点输入输出","TypedDict 占内存更少","TypedDict 不能被修改"],a:1,e:"TypedDict 让静态分析工具（mypy、Pyright）和 IDE 知道字典里有哪些 key，避免拼写错误，也让 LangGraph 能做运行时验证。"},
+    {q:"graph.compile() 的作用是什么？",o:["执行图，直接开始运行 Agent","把图定义冻结成可调用的 Runnable 对象（支持 invoke/stream/astream）","检查图是否有环","把 Python 代码编译成机器码"],a:1,e:"compile() 返回一个 Runnable，不会立即执行任何 Agent。图的执行在 .invoke() 或 .stream() 被调用时才开始。"},
+    {q:"Analyst 节点为什么不直接读取 state['research'] 原文，而是经过它自己的处理后再传给 Summariser？",o:["因为 LangGraph 不允许跳过节点","每个 Agent 只处理'上一步'的输出，形成信息分层：原始→分析→报告。避免 Summariser 被原始噪音干扰","这是编程规范要求","Summariser 无法读取 research 字段"],a:1,e:"信息分层是流水线 Agent 的核心设计。Summariser 只需要精炼的分析，不需要也不应该处理原始爬取的大量文本。这减少了 token 消耗，也让报告更聚焦。"},
+    {q:"如何在 Analyst 完成后添加一个人工审核环节（暂停执行）？",o:["在 analyst_node 函数末尾 print 并等待 input()","在 graph.compile() 时加 interrupt_before=['summariser']","在 add_edge 里设置 wait=True 参数","LangGraph 不支持人工介入"],a:1,e:"LangGraph 内置人工介入支持：compile(interrupt_before=['node_name']) 会在执行到该节点前自动暂停。配合 checkpointer，人类审核后调用 app.invoke(None, config) 从暂停处继续。"},
+    {q:"Groq 的 API 接口和哪个服务兼容？",o:["仅 Groq 专有格式","OpenAI API 完全兼容","LangChain 专有格式","无法和其他服务互换"],a:1,e:"Groq 实现了与 OpenAI 完全兼容的接口，只需替换 base_url 和 api_key，代码不用改就能切换到 GPT-4/Claude/Mistral 等其他服务。"},
+    {q:"要让三个搜索 Agent 并行执行，然后汇聚到 Analyst，需要用什么技术？",o:["用 Python threading 模块","在 add_edge 里同时从 START 引出多条边，LangGraph 自动并行；Annotated[list, operator.add] 合并多个节点的输出","在 build_graph 里设置 parallel=True","LangGraph 不支持并行"],a:1,e:"LangGraph 发现多条边从同一节点出发（如 START→A, START→B, START→C）时，自动并行执行。Annotated[list, operator.add] 让多个节点写入同一字段时自动追加而不是覆盖（Map-Reduce 的 Reduce 部分）。"},
+    {q:"research_node 调用 tavily.search() 时，max_results=5 意味着？",o:["最多存储 5 篇文章在磁盘","搜索返回最多 5 篇文章，每篇的 title+content 被拼接成 research 字段","Tavily 免费用户最多 5 次","并行搜索 5 个关键词"],a:1,e:"Tavily 返回 JSON 格式的搜索结果，max_results=5 限制返回文章数量。代码把 5 篇文章的 title 和 content 拼接成一大段字符串，作为 research 字段传给 Analyst。"},
+    {q:"如果想让 Analyst 在判断搜索质量太差时自动重新搜索，应该用哪个 LangGraph API？",o:["graph.add_edge() 加一条反向边","graph.add_conditional_edges()，根据 State 中的字段值决定下一步走哪条边","在 analyst_node 里直接调用 research_node()","LangGraph 不支持循环"],a:1,e:"add_conditional_edges(node, routing_fn, mapping) 允许根据一个路由函数的返回值动态决定下一个节点。这是实现 Reflexion（失败重试）和自我修正 Agent 的基础机制。"},
+    {q:"项目中 MODEL = 'llama-3.1-8b-instant' 是在哪个服务上运行的？",o:["OpenAI 服务器","Meta 自有服务器","Groq 的 LPU（Language Processing Unit）专用推理芯片上","本地 CPU"],a:2,e:"Groq 使用自研的 LPU（Language Processing Unit）芯片运行 LLM，延迟极低（llama-3.1-8b 约 200ms 首token）。Groq 不是模型提供商，而是推理加速服务商，它运行 Meta 开源的 LLaMA 模型。"}
+  ];
+  let qi=0,qcnt={c:0,w:0},answered=false;
+  function renderQ(){
+    answered=false;
+    const q=QS[qi];
+    document.getElementById('qn').textContent=qi+1;
+    document.getElementById('qprog').style.width=((qi/QS.length)*100)+'%';
+    document.getElementById('qq').textContent=q.q;
+    document.getElementById('qfb').style.display='none';
+    document.getElementById('qnext').style.display='none';
+    const el=document.getElementById('qopts');
+    el.innerHTML='';
+    q.o.forEach((o,i)=>{
+      const d=document.createElement('div');
+      d.className='qz-opt';
+      d.textContent=(i===0?'A. ':i===1?'B. ':i===2?'C. ':'D. ')+o;
+      d.onclick=()=>pick(i,d,q);
+      el.appendChild(d);
+    });
+  }
+  function pick(i,el,q){
+    if(answered)return;
+    answered=true;
+    document.querySelectorAll('.qz-opt').forEach(o=>o.onclick=null);
+    const ok=i===q.a;
+    el.classList.add(ok?'correct':'wrong');
+    if(!ok)document.querySelectorAll('.qz-opt')[q.a].classList.add('correct');
+    ok?qcnt.c++:qcnt.w++;
+    document.getElementById('qc').textContent=qcnt.c;
+    document.getElementById('qw').textContent=qcnt.w;
+    const fb=document.getElementById('qfb');
+    fb.style.display='block';
+    fb.style.background=ok?'#3fb95015':'#f8514915';
+    fb.style.border=`1px solid ${ok?'#3fb95044':'#f8514944'}`;
+    fb.innerHTML=`<strong style="color:${ok?'var(--green)':'var(--red)'}">${ok?'✓ 正确！':'✗ 错误'}</strong><br>${q.e}`;
+    document.getElementById('qnext').style.display='inline-block';
+  }
+  function nextQ(){
+    qi++;
+    if(qi>=QS.length){
+      document.getElementById('quiz-q-card').style.display='none';
+      document.getElementById('quiz-end').style.display='block';
+      const pct=Math.round(qcnt.c/QS.length*100);
+      document.getElementById('qend-emoji').textContent=pct>=80?'🎉':pct>=60?'👍':'💪';
+      document.getElementById('qend-title').textContent=pct>=80?`优秀！${pct}%`:pct>=60?`良好 ${pct}%`:`继续加油 ${pct}%`;
+      document.getElementById('qend-msg').textContent=pct>=80?'LangGraph Multi-Agent 核心已掌握，可以开始动手改造项目了！':pct>=60?'基本概念清晰，建议重读 Agent 和图编排两章':' 别灰心，回头对照代码重新读一遍再来挑战！';
+    }else{
+      renderQ();
+    }
+  }
+  function restartQ(){
+    qi=0;qcnt={c:0,w:0};
+    document.getElementById('quiz-q-card').style.display='block';
+    document.getElementById('quiz-end').style.display='none';
+    document.getElementById('qc').textContent=0;
+    document.getElementById('qw').textContent=0;
+    renderQ();
+  }
+  renderQ();
+  </script>
+</div>
+
+<script>
+// ─── Page switch ───────────────────────────────────────────────
+function sp(id){
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('on'));
+  document.querySelectorAll('.nav-t').forEach(t=>t.classList.remove('on'));
+  document.getElementById('page-'+id).classList.add('on');
+  event.target.classList.add('on');
+}
+// ─── Accordion ────────────────────────────────────────────────
+function toggleAcc(el){
+  const b=el.nextElementSibling,a=el.querySelector('.arr');
+  b.classList.toggle('open');a.classList.toggle('open');
+}
+// ─── Extension panels ─────────────────────────────────────────
+function showExt(n,btn){
+  document.querySelectorAll('.ext-panel').forEach(p=>p.style.display='none');
+  document.querySelectorAll('.step').forEach(s=>s.classList.remove('on'));
+  document.getElementById('ext-'+n).style.display='block';
+  btn.classList.add('on');
+}
+</script>
+</body>
+</html>
